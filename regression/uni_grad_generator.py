@@ -13,7 +13,7 @@ class Generator(object):
         """
         随机生成num个二元组( X, Y )，对这些数据集进行线性分
         """
-        with open( 'grad_data.txt', 'w+' ) as hand:
+        with open( 'uni_grad_data.txt', 'w+' ) as hand:
 
             i = 1;
             while i <= num :
