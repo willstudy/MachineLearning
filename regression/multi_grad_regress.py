@@ -45,6 +45,7 @@ class LinearRegression( object ):
                 line_data = line.strip('\n').split(' ')
                 X_set = []      # ( X1, X2, X3, X4 )
 
+                X_set.append(1.0)      # 增设变量 BO，对应常量项
                 for item in line_data :
                     X_set.append(float(item))
 
@@ -77,9 +78,10 @@ regress.regress('multi_grad_data.txt')
 
 """
 我机器上输出结果为：
-[[ 1.00957565]
- [ 2.01272681]
- [ 3.01672003]
- [ 4.01104362]]
+[[ 4.10575543]
+ [ 1.00000618]
+ [ 2.00396198]
+ [ 3.00571856]
+ [ 4.0019599 ]]
 这样的结果符合预期，最小二乘法求多元线性回归太给力了！！！！哈哈哈~~
 """
