@@ -220,9 +220,9 @@ class LDA:
 				doc_id +=1
 			init_iter += 1
 
-		self.compute_theta( alpha )
-		self.compute_phi( beta )
-		self.record_model( )	
+		self.compute_theta()
+		self.compute_phi()
+		self.record_model()	
 
 lda = LDA()
 
