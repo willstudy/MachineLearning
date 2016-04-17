@@ -10,6 +10,8 @@ class LDA:
 	def __init__( self ):
 		# 单词到ID的映射表	
 		self.word_map = {}
+		# ID到单词的映射	
+		self.id2word = []
 		# 保存每篇文章的词数
 		self.doc_word_num = []
 		# 保存每篇文章
@@ -36,12 +38,19 @@ class LDA:
 		self.alpha = 0
 		# 主题——单词的Dirichlet分布参数
 		self.beta = 0
+		# 最大迭代次数
+		self.max_iter = 0
 
-	def initial( self, sample, topic_num = 10 ):
+	def initial( self, sample_file, max_iter = 100, alpha = 0.5, beta = 0.1, topic_num = 20 ):
 
-		self.M = int(sample.readline().strip())
+		self.max_iter = max_iter
+		self.alpha = alpha
+		self.beta = beta
+		self.K = topic_num
+
+		self.M = int(sample_file.readline().strip())
 		
-		for line in sample.readlines():
+		for line in sample_file.readlines():
 
 			line = line.strip().split(' ')
 			for word in line:
@@ -49,19 +58,21 @@ class LDA:
 					pass
 				else :
 				 	self.word_map[word] = len(self.word_map) 
+				 	self.id2word.append(word)
+			# 保存每篇文章
 			self.doc.append(line)
+			# 保存每篇文章的单词个数
 		  	self.doc_word_num.append(len(line))	  
 		
 		self.V = len(self.word_map)
-		self.K = topic_num
 		
 		"""
 		初始化每个主题中含有的单词数
 		"""
-		i = 0
-		while i < self.K :
+		k = 0
+		while k < self.K :
 			self.topic.append(0)
-			i += 1
+			k += 1
 		"""
 		初始化每个单词ID属于不同主题的个数
 		"""
@@ -81,12 +92,12 @@ class LDA:
 		
 		doc_id = 0
 		while doc_id < doc_num:
-			doc_topic = []
+			topic_word = []
 			topic_index = 0
 			while topic_index < self.K:
-				doc_topic.append(0)
+				topic_word.append(0)
 				topic_index += 1
-			self.doc_topic.append(doc_topic)
+			self.doc_topic.append(topic_word)
 			doc_id += 1
 
 		"""
@@ -95,8 +106,8 @@ class LDA:
 		doc_id = 0
 		while doc_id < doc_num :
 			document = self.doc[doc_id]
+			word_num = self.doc_word_num[doc_id]
 			word_index = 0
-			word_num = len(document)
 			word_topic = []
 			while word_index < word_num:
 				random_topic = random.randint(0, self.K-1)
@@ -104,8 +115,10 @@ class LDA:
 				self.word_id_topic[word_id][random_topic] += 1
 				self.topic[random_topic] += 1
 				self.doc_topic[doc_id][random_topic] += 1
+				#  每个单词对应的主题
 				word_topic.append(random_topic)
 				word_index += 1
+			# 每篇文章m的第n个单词对应的主题 doc_word_topic[m][n] = random_topic
 			self.doc_word_topic.append(word_topic)
 			doc_id += 1
 
@@ -132,12 +145,14 @@ class LDA:
 						/ ( self.doc_word_num[doc_id] + kalpha )
 
 				pro.append(probility)
+				k += 1
 			"""
 			掷筛子算法
 			"""
 			k = 1
-			while i < self.K:
+			while k < self.K:
 				pro[k] += pro[k-1]
+				k += 1
 			
 			possible = random.random() * pro[self.K - 1]
 
@@ -145,73 +160,129 @@ class LDA:
 			while topic < self.K:
 				if pro[topic] > possible :
 					break
+				topic += 1
 
 			self.word_id_topic[word_id][topic] += 1
 			self.doc_topic[doc_id][topic] += 1
 			self.topic[topic] += 1
-			self.doc_num[doc_id] += 1
+			self.doc_word_num[doc_id] += 1
+
+			return topic
 
 	def compute_theta( self ):
 		doc_id = 0
-		
 		while doc_id < self.M:
 			topic_index = 0
+			theta_pro = []
 			while topic_index < self.K:
-				self.theta[doc_id][topic_index] = ( self.doc_topic[doc_id][topic] + self.alpha ) / \
-								  ( self.doc_num[doc_id] + self.K * self.alpha )
+				temp_pro = ( self.doc_topic[doc_id][topic_index] + self.alpha ) / \
+					   ( self.doc_word_num[doc_id] + self.K * self.alpha )
+				theta_pro.append(temp_pro)
 				topic_index += 1
+			self.theta.append(theta_pro)
 			doc_id += 1
 	
 	def compute_phi( self ):
 		topic_index = 0
 		while topic_index < self.K:
 			word_id = 0
+			phi_pro = []
 			while word_id < self.V:
-				self.phi[topic_index][word_id] = ( self.word_id_topic[word_id][topic_index] + self.beta ) / \
-							( self.topic[topic_index] + self.V * self.beta )	 
+				temp_pro = ( self.word_id_topic[word_id][topic_index] \
+						+ self.beta ) / ( self.topic[topic_index] \
+						+ self.V * self.beta )	 
+				phi_pro.append(temp_pro)
 				word_id += 1
+			self.phi.append(phi_pro)
 			topic_index += 1
 	
 	def record_model( self ):
+		os.chdir('../model')
+
 		theta_file = open('theta.txt', 'w+')
 		phi_file = open('phi.txt', 'w+')
 		assign_file = open('assign.txt', 'w+')
+		topic_word_file = open('topic_word.txt', 'w+')
 		
 		doc_id = 0 
 		while doc_id < self.M:
 			for item in self.theta[doc_id] :
 				theta_file.write( str(item) + ' ' )	
+			doc_id += 1
 			theta_file.write('\n')	
+
+		theta_file.close()
 		
 		topic_index = 0
 		while topic_index < self.K:
 			for item in self.phi[topic_index]:
 				phi_file.write( str(item) + ' ')
+			topic_index += 1
 			phi_file.write('\n')
+
+		phi_file.close()
 		
 		doc_id = 0
 		while doc_id < self.M:
-			word_num = self.doc_num[doc_id]
+			word_num = self.doc_word_num[doc_id]
 			word_index = 0
 			while word_index < word_num:
 				topic = self.doc_word_topic[doc_id][word_index]
-				assign.write(self.doc[doc_id][word_index] + ':' + str(topic) + ' ')
+				assign_file.write(str(self.doc[doc_id][word_index]) + ':' + str(topic) + ' ')
 				word_index += 1
-			assign.write('\n')
+			assign_file.write('\n')
 			doc_id += 1
-			
-	def estimate( self, max_iter = 100, alpha = 0.5, beta = 0.01, topic_num = 20 ):
 		
-		self.alpha = alpha
-		self.beta = beta	
-		self.K = topic_num	
+		assign_file.close()
+		
+		topic_word = {}
+		word_id = 0
+		while word_id < self.V:
+			topic_index = 0
+			while topic_index < self.K:
+				num = self.word_id_topic[word_id][topic_index]
+				word = self.id2word[word_id]
+				if topic_word.has_key(topic_index):
+					pair = topic_word[topic_index]
+					if pair.has_key(word):
+						pair[word] += num
+					else:
+					 	pair[word] = num
+				else:
+				  	pair = {}
+					pair[word] = num
+					topic_word[topic_index] = pair
+				topic_index += 1
+			word_id += 1
+
+		topic_index = 0
+		while topic_index < self.K:
+			topic_word_file.write(str(topic_index)+': \n')
+			word_list = topic_word[topic_index]
+			word_list = sorted( word_list.iteritems(), key=lambda a:a[1], reverse=True )
+
+			i = 0
+			for key,value in word_list:
+				if i > 10:
+					break
+				topic_word_file.write(str(key) + ' ')
+				i += 1
+
+			topic_word_file.write('\n')
+			topic_index += 1
+
+		topic_word_file.close()
+			
+	def estimate( self ):
+		
 		init_iter = 0
 
-		while init_iter < max_iter :
+		while init_iter < self.max_iter :
+			print init_iter
 			doc_id = 0
-			while doc_id < self.K:
+			while doc_id < self.M:
 				document = self.doc[doc_id]
-				word_num = len(document)
+				word_num = self.doc_word_num[doc_id]
 				word_index = 0
 				while word_index < word_num:
 					topic = self.sampling( doc_id, word_index )
