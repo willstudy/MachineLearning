@@ -2,6 +2,7 @@
 
 from __future__ import division
 
+import sys, getopt
 import os
 import random
 
@@ -41,7 +42,7 @@ class LDA:
 		# 最大迭代次数
 		self.max_iter = 0
 
-	def initial( self, sample_file, max_iter = 100, alpha = 0.5, beta = 0.1, topic_num = 20 ):
+	def initial( self, sample_file, topic_num = 10, max_iter = 100, alpha = 0.5, beta = 0.1 ):
 
 		self.max_iter = max_iter
 		self.alpha = alpha
@@ -202,8 +203,9 @@ class LDA:
 		theta_file = open('theta.txt', 'w+')
 		phi_file = open('phi.txt', 'w+')
 		assign_file = open('assign.txt', 'w+')
+		model_file = open('model.txt', 'w+')
 		topic_word_file = open('topic_word.txt', 'w+')
-		
+
 		doc_id = 0 
 		while doc_id < self.M:
 			for item in self.theta[doc_id] :
@@ -234,6 +236,20 @@ class LDA:
 			doc_id += 1
 		
 		assign_file.close()
+
+		model_file.write(str(self.V) + ' ' + str(self.K) + '\n')
+		doc_id = 0
+		while doc_id < self.M:
+			word_num = self.doc_word_num[doc_id]
+			word_index = 0
+			while word_index < word_num:
+				topic = self.doc_word_topic[doc_id][word_index]
+				model_file.write(self.doc[doc_id][word_index] + ':' + str(topic) + ' ')
+				word_index += 1
+			model_file.write('\n')
+			doc_id += 1
+		
+		model_file.close()
 		
 		topic_word = {}
 		word_id = 0
@@ -295,9 +311,92 @@ class LDA:
 		self.compute_phi()
 		self.record_model()	
 
-lda = LDA()
+	def load_model( self, model_hand ):
 
-with open('../model/sample.txt', 'r') as file_read:
+		line = model_hand.readline().strip().split(' ')
+		self.K = int(line[1])
+		self.V = int(line[0])
+		self.alpha = 0.5
+		self.beta = 0.1
+		
+		self.topic = [ 0 for item in range(self.K) ]
+		self.word_id_topic = [[ 0 for col in range(self.K) ] for row in range(self.V)]
+		self.id2word = [0 for row in range(self.V)]
+
+		for document in model_hand.readlines():
+			document = document.strip().split(' ')
+			word_topic = []
+			word_list = []
+			doc_topic = [0 for col in range(self.K)]
+			for word in document:
+				word = word.split(':')
+				word_topic.append(int(word[1]))
+				word_list.append(word[0])
+				
+				if self.word_map.has_key(word[0]):
+					pass
+				else :
+				 	self.word_map[word[0]] = len(self.word_map)
+				self.topic[int(word[1])] += 1
+				self.word_id_topic[self.word_map[word[0]]][int(word[1])] += 1
+				doc_topic[int(word[1])] += 1
+				self.id2word[int(word[1])] = word[0]
+
+			self.doc.append(word_list)
+			self.doc_word_topic.append(word_topic)
+			self.doc_topic.append(doc_topic)
+			self.doc_word_num.append(len(document))
+
+if __name__ == "__main__":
+
+	ESTIMATE = 0
+	ESTIMATEC = 1
+	INFERENCE = 2
+
+	options, args = getopt.getopt( sys.argv[1:], "ecid:K::m::s::", \
+			["--e", "--ec", "--if", "--data=", "--topic=", "--model=", "--step="] )
 	
-	lda.initial(file_read)
-	lda.estimate()
+	way = -1
+	sample_file = ""
+	K = 10
+	model_file = ""
+	max_iter = 100
+
+	for name, value in options:
+
+		if name in ("-e", "--e"):
+			way = ESTIMATE
+		if name in ("-c", "--ec"):
+			way = ESTIMATEC
+		if name in ("-i", "--if"):
+			way = INFERENCE
+		if name in ("-d", "--sample"):
+			sample_file = value
+		if name in ("-K", "--topic"):
+			K = int(value)
+		if name in ("-m", "--model"):
+			model_file = value
+		if name in ("-s", "--step"):
+			max_iter = int(value)
+
+	if way == ESTIMATE and sample_file == "":
+		print "Please input sample file, using -d or -data=sample.dat"
+		sys.exit()
+	if way == ESTIMATEC and model_file == "" :
+		print "Please input model or word map file"
+		sys.exit()
+
+	lda = LDA()
+
+	if way == ESTIMATE:
+		with open(sample_file, 'r') as file_read:
+			lda.initial(file_read, K, max_iter )
+			lda.estimate()
+	if way == ESTIMATEC:
+		with open(model_file, 'r') as model_hand:
+			lda.load_model( model_hand )
+			lda.estimate()
+	
+		
+
+			
